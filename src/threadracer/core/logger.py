@@ -8,9 +8,13 @@ class LogLevel(IntEnum):
     ERROR = 1
     WARNING = 2
     INFO = 3
+    RETRY = 4
+
 
 class Logger:
-    def __init__(self, verbose: bool = False, filename: str | None = "logs/threadracer.log"):
+    def __init__(
+        self, verbose: bool = False, filename: str | None = "logs/threadracer.log"
+    ):
         self.verbose = verbose
         self.filename = filename
         self.start_time = time.time()
@@ -45,6 +49,9 @@ class Logger:
 
     def info(self, msg: str):
         self.log(msg, LogLevel.INFO)
+
+    def retry(self, msg: str):
+        self.log(msg, LogLevel.RETRY)
 
     def close(self):
         if self._closed:

@@ -38,5 +38,3 @@ def resolve_output_path(url: str, output: str | None = None) -> str:
     if directory:
         os.makedirs(directory, exist_ok=True)
     return output
-
-

@@ -7,6 +7,7 @@ from threadracer.core.downloader import Downloader
 from threadracer.core.request import Request
 from threadracer.spinner import Spinner
 
+
 def main():
     print(
         r"""
@@ -24,34 +25,46 @@ def main():
     )
 
     parser.add_argument(
-        "-u", "--url",
+        "-u",
+        "--url",
         required=True,
         help="URL of the file to download",
     )
     # TODO: Add support for headers
     parser.add_argument(
-        "-H", "--header",
+        "-H",
+        "--header",
         action="append",
         help="HTTP header (Key: Value)",
     )
     # TODO: Add support for cookies
     parser.add_argument(
-        "-c", "--cookie",
+        "-c",
+        "--cookie",
         action="append",
         help="HTTP cookie (Key: Value)",
     )
     parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         default=None,
         help="Output filename or directory",
     )
-    
 
     parser.add_argument(
-        "-t", "--threads",
+        "-t",
+        "--threads",
         type=int,
         default=4,
         help="Number of download threads",
+    )
+
+    parser.add_argument(
+        "-r",
+        "--retries",
+        type=int,
+        default=3,
+        help="Number of retries on failure",
     )
 
     args = parser.parse_args()
@@ -66,6 +79,7 @@ def main():
     downloader = Downloader(
         logger=logger,
         threads=args.threads,
+        retries=args.retries,
     )
 
     downloader.request = request
