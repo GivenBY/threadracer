@@ -67,6 +67,20 @@ def main():
         help="Number of retries on failure",
     )
 
+    parser.add_argument(
+        "-C",
+        "--checksum",
+        default=None,
+        help="Checksum of the file to verify",
+    )
+
+    parser.add_argument(
+        "-a",
+        "--algo",
+        default="sha256",
+        help="Hash algorithm to use for verification",
+    )
+
     args = parser.parse_args()
     headers = parse_headers(args.header)
 
@@ -85,7 +99,7 @@ def main():
     downloader.request = request
     with Spinner("Downloading..."):
         try:
-            downloader.download(args.url, args.output)
+            downloader.download(args.url, args.output, args.checksum, args.algo)
         except requests.exceptions.HTTPError as e:
             logger.error(str(e))
             print(f"Error: {e}", file=sys.stderr)

@@ -2,6 +2,8 @@ from threadracer.core.request import Request
 from threadracer.utils import resolve_output_path
 import threading
 import time
+import os
+import hashlib
 
 
 class Downloader:
@@ -22,7 +24,28 @@ class Downloader:
         self.backoff_max = backoff_max
         self.request = Request()
 
-    def download(self, url, output: str | None = None):
+    def verify_file_hash(self, path: str, checksum: str, algo="sha256"):
+        h = hashlib.new(algo)
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                h.update(chunk)
+
+        actual = h.hexdigest()
+        if actual != checksum:
+            self.logger.error(
+                f"Integrity check failed: expected {checksum}, got {actual}"
+            )
+            raise ValueError(
+                f"Integrity check failed: expected {checksum}, got {actual}"
+            )
+
+    def download(
+        self,
+        url,
+        output: str | None = None,
+        checksum: str | None = None,
+        algo: str = "sha256",
+    ):
         path = resolve_output_path(url, output)
 
         for attempt in range(1, self.retries + 2):
@@ -31,16 +54,21 @@ class Downloader:
                     self._download_threaded(url, path)
                 else:
                     self._download_single(url, path)
+
+                if checksum:
+                    self.verify_file_hash(path, checksum, algo)
                 return path
 
             except Exception as e:
+                if os.path.exists(path):
+                    os.remove(path)
                 if attempt >= self.retries + 1:
                     self.logger.error(f"Download failed after {attempt} attempts: {e}")
                     raise
 
                 # BackOFF logic https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/retry-backoff.html
                 delay = min(
-                    (2 ** (attempt - 1) - 1) * 0.1,
+                    (self.backoff_factor ** (attempt - 1) - 1) * self.backoff_base,
                     self.backoff_max,
                 )
 
@@ -56,6 +84,8 @@ class Downloader:
             for chunk in r.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
+
+        return path
 
     def _download_threaded(self, url, path):
         size = self.request.content_length(url)
@@ -80,6 +110,8 @@ class Downloader:
 
         for t in threads:
             t.join()
+
+        return path
 
     def _download_range(self, url, path, start, end):
         self.logger.info(f"Downloading range {start}-{end} of {url}")
