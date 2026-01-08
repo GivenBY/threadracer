@@ -1,0 +1,21 @@
+[project]
+name = "threadracer"
+version = "1.0.0"
+description = "Multithreaded file downloader"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.32.5",
+    "tqdm>=4.67.1",
+]
+license = "MIT"
+authors = [
+    { name = "Suryakant Upadhyay", email = "suryakantupadhyay18@gmail.com" },
+]
+
+[project.scripts]
+threadracer = "threadracer.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.9,<0.10"]
+build-backend = "uv_build"
