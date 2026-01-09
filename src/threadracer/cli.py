@@ -3,7 +3,7 @@ import sys
 import requests
 from threadracer.utils import parse_headers
 from threadracer.core.logger import Logger
-from threadracer.core.downloader import Downloader
+from threadracer.core.downloader import Downloader, DownloadCancelled
 from threadracer.core.request import Request
 from threadracer.spinner import Spinner
 
@@ -97,16 +97,26 @@ def main():
     )
 
     downloader.request = request
-    with Spinner("Downloading..."):
-        try:
+
+    try:
+        with Spinner("Downloading..."):
             downloader.download(args.url, args.output, args.checksum, args.algo)
-        except requests.exceptions.HTTPError as e:
-            logger.error(str(e))
-            print(f"Error: {e}", file=sys.stderr)
-            sys.exit(1)
-        except Exception as e:
-            logger.error(f"An unexpected error occurred: {e}")
-            print(f"An unexpected error occurred: {e}", file=sys.stderr)
-            sys.exit(1)
+
+    except KeyboardInterrupt:
+        downloader.cancel()
+
+    except DownloadCancelled:
+        logger.error("Download cancelled by user")
+        sys.exit(130)
+
+    except requests.exceptions.HTTPError as e:
+        logger.error(str(e))
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        print(f"Unexpected error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     logger.info("Threadracer finished")

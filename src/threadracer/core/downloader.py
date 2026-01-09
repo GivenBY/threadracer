@@ -6,6 +6,10 @@ import os
 import hashlib
 
 
+class DownloadCancelled(Exception):
+    pass
+
+
 class Downloader:
     def __init__(
         self,
@@ -23,6 +27,7 @@ class Downloader:
         self.backoff_factor = backoff_factor
         self.backoff_max = backoff_max
         self.request = Request()
+        self._stop_event = threading.Event()
 
     def verify_file_hash(self, path: str, checksum: str, algo="sha256"):
         h = hashlib.new(algo)
@@ -59,12 +64,22 @@ class Downloader:
                     self.verify_file_hash(path, checksum, algo)
                 return path
 
+            except DownloadCancelled:
+                if os.path.exists(path):
+                    os.remove(path)
+                raise
+
+            except KeyboardInterrupt:
+                if os.path.exists(path):
+                    os.remove(path)
+                raise
+
             except Exception as e:
                 if os.path.exists(path):
                     os.remove(path)
                 if attempt >= self.retries + 1:
                     self.logger.error(f"Download failed after {attempt} attempts: {e}")
-                    raise e
+                    raise
                 # BackOFF logic https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/retry-backoff.html
                 delay = min(
                     (self.backoff_factor ** (attempt - 1) - 1) * self.backoff_base,
@@ -81,6 +96,8 @@ class Downloader:
         r = self.request.stream(url)
         with open(path, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):
+                if self._stop_event.is_set():
+                    raise DownloadCancelled()
                 if chunk:
                     f.write(chunk)
 
@@ -111,6 +128,8 @@ class Downloader:
                 with open(path, "r+b") as f:
                     f.seek(start)
                     for chunk in r.iter_content(chunk_size=8192):
+                        if self._stop_event.is_set():
+                            raise DownloadCancelled()
                         if chunk:
                             f.write(chunk)
             except Exception as e:
@@ -129,3 +148,6 @@ class Downloader:
 
         if errors:
             raise errors[0]
+
+    def cancel(self):
+        self._stop_event.set()
