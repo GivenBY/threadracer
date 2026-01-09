@@ -64,8 +64,7 @@ class Downloader:
                     os.remove(path)
                 if attempt >= self.retries + 1:
                     self.logger.error(f"Download failed after {attempt} attempts: {e}")
-                    raise
-
+                    raise e
                 # BackOFF logic https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/retry-backoff.html
                 delay = min(
                     (self.backoff_factor ** (attempt - 1) - 1) * self.backoff_base,
@@ -85,40 +84,48 @@ class Downloader:
                 if chunk:
                     f.write(chunk)
 
-        return path
-
     def _download_threaded(self, url, path):
         size = self.request.content_length(url)
         if size <= 0:
             return self._download_single(url, path)
 
         self.logger.info(f"Downloading (threaded): {url}")
-        part = size // self.threads
+
         threads = []
+        errors: list[Exception] = []
+        lock = threading.Lock()
+        part = size // self.threads
 
         with open(path, "wb") as f:
             f.truncate(size)
 
+        def worker(start: int, end: int):
+            try:
+                headers = {"Range": f"bytes={start}-{end}"}
+                r = self.request.stream(url, headers=headers)
+                if r.status_code != 206:
+                    self.logger.error(f"Server ignored Range request ({r.status_code})")
+                    raise RuntimeError(
+                        f"Server ignored Range request ({r.status_code})"
+                    )
+                with open(path, "r+b") as f:
+                    f.seek(start)
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+            except Exception as e:
+                with lock:
+                    errors.append(e)
+
         for i in range(self.threads):
             start = i * part
             end = size - 1 if i == self.threads - 1 else start + part - 1
-            t = threading.Thread(
-                target=self._download_range, args=(url, path, start, end)
-            )
-            threads.append(t)
+            t = threading.Thread(target=worker, args=(start, end))
             t.start()
+            threads.append(t)
 
         for t in threads:
             t.join()
 
-        return path
-
-    def _download_range(self, url, path, start, end):
-        self.logger.info(f"Downloading range {start}-{end} of {url}")
-        headers = {"Range": f"bytes={start}-{end}"}
-        r = self.request.stream(url, headers=headers)
-        with open(path, "r+b") as f:
-            f.seek(start)
-            for chunk in r.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
+        if errors:
+            raise errors[0]

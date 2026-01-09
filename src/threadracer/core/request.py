@@ -1,4 +1,6 @@
 import requests
+import threading
+from threadracer.core.logger import Logger
 
 
 class Request:
@@ -16,11 +18,18 @@ class Request:
 
     def __init__(self):
         self.session = requests.Session()
+        self.logger = Logger()
+        self._head_cache: dict[str, requests.Response] = {}
+        self._lock = threading.Lock()
 
     def head(self, url: str) -> requests.Response:
-        r = self.session.head(url, allow_redirects=True, timeout=10)
-        r.raise_for_status()
-        return r
+        with self._lock:
+            if url in self._head_cache:
+                return self._head_cache[url]
+            r = self.session.head(url, allow_redirects=True, timeout=(5, 10))
+            r.raise_for_status()
+            self._head_cache[url] = r
+            return r
 
     def supports_range(self, url: str) -> bool:
         headers = self.head(url).headers
@@ -31,19 +40,15 @@ class Request:
         return int(headers.get("Content-Length", 0))
 
     def detect_extension(self, url: str) -> str:
-        try:
-            with self.session.get(url, stream=True, timeout=5) as r:
-                r.raise_for_status()
-                chunk = r.raw.read(8)
-                sig = chunk.hex().lower()
-                for k, v in self.signatures.items():
-                    if sig.startswith(k):
-                        return "." + v
-        except Exception:
-            pass
+        r = self.session.get(url, stream=True, timeout=(5, 10))
+        r.raise_for_status()
+        sig = r.raw.read(8).hex().lower()
+        for k, v in self.signatures.items():
+            if sig.startswith(k):
+                return "." + v
         return ".bin"
 
     def stream(self, url: str, headers: dict | None = None):
-        r = self.session.get(url, headers=headers, stream=True)
+        r = self.session.get(url, headers=headers, stream=True, timeout=(5, 10))
         r.raise_for_status()
         return r
