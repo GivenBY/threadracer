@@ -9,6 +9,7 @@ class LogLevel(IntEnum):
     WARNING = 2
     INFO = 3
     RETRY = 4
+    DEBUG = 5
 
 
 class Logger:
@@ -53,6 +54,9 @@ class Logger:
     def retry(self, msg: str):
         self.log(msg, LogLevel.RETRY)
 
+    def debug(self, msg: str):
+        self.log(msg, LogLevel.DEBUG)
+
     def close(self):
         if self._closed:
             return
@@ -70,6 +74,6 @@ class Logger:
         return self
 
     def __exit__(self, exc_type, exc, tb):
-        if exc:
+        if exc and exc_type is not SystemExit:
             self.error(str(exc))
         self.close()

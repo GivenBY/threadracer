@@ -81,42 +81,51 @@ def main():
         help="Hash algorithm to use for verification",
     )
 
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging",
+    )
+
     args = parser.parse_args()
     headers = parse_headers(args.header)
 
-    logger = Logger()
-    logger.info("Threadracer started")
+    with Logger(verbose=args.verbose) as logger:
+        logger.info("Threadracer started")
 
-    request = Request()
-    request.session.headers.update(headers)
+        request = Request(logger=logger)
+        request.session.headers.update(headers)
 
-    downloader = Downloader(
-        logger=logger,
-        threads=args.threads,
-        retries=args.retries,
-    )
+        downloader = Downloader(
+            logger=logger,
+            threads=args.threads,
+            retries=args.retries,
+        )
 
-    downloader.request = request
+        downloader.request = request
 
-    try:
-        with Spinner("Downloading..."):
-            downloader.download(args.url, args.output, args.checksum, args.algo)
+        try:
+            with Spinner("Downloading..."):
+                downloader.download(args.url, args.output, args.checksum, args.algo)
 
-    except KeyboardInterrupt:
-        downloader.cancel()
+        except KeyboardInterrupt:
+            downloader.cancel()
+            logger.error("Download cancelled by user")
+            sys.exit(130)
 
-    except DownloadCancelled:
-        logger.error("Download cancelled by user")
-        sys.exit(130)
+        except DownloadCancelled:
+            logger.error("Download cancelled by user")
+            sys.exit(130)
 
-    except requests.exceptions.HTTPError as e:
-        logger.error(str(e))
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+        except requests.exceptions.HTTPError as e:
+            logger.error(str(e))
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
 
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        print(f"Unexpected error: {e}", file=sys.stderr)
-        sys.exit(1)
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            print(f"Unexpected error: {e}", file=sys.stderr)
+            sys.exit(1)
 
-    logger.info("Threadracer finished")
+        logger.info("Threadracer finished")

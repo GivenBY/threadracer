@@ -26,10 +26,11 @@ class Downloader:
         self.backoff_base = backoff_base
         self.backoff_factor = backoff_factor
         self.backoff_max = backoff_max
-        self.request = Request()
+        self.request = Request(logger=self.logger)
         self._stop_event = threading.Event()
 
     def verify_file_hash(self, path: str, checksum: str, algo="sha256"):
+        self.logger.debug(f"Verifying hash for {path} with algo {algo}")
         h = hashlib.new(algo)
         with open(path, "rb") as f:
             for chunk in iter(lambda: f.read(1024 * 1024), b""):
@@ -43,6 +44,7 @@ class Downloader:
             raise ValueError(
                 f"Integrity check failed: expected {checksum}, got {actual}"
             )
+        self.logger.success(f"Integrity check passed: {actual}")
 
     def download(
         self,
@@ -52,6 +54,7 @@ class Downloader:
         algo: str = "sha256",
     ):
         path = resolve_output_path(url, output)
+        self.logger.info(f"Resolved output path: {path}")
 
         for attempt in range(1, self.retries + 2):
             try:
@@ -66,16 +69,19 @@ class Downloader:
 
             except DownloadCancelled:
                 if os.path.exists(path):
+                    self.logger.info(f"Removing incomplete file: {path}")
                     os.remove(path)
                 raise
 
             except KeyboardInterrupt:
                 if os.path.exists(path):
+                    self.logger.info(f"Removing incomplete file: {path}")
                     os.remove(path)
                 raise
 
             except Exception as e:
                 if os.path.exists(path):
+                    self.logger.info(f"Removing incomplete file: {path}")
                     os.remove(path)
                 if attempt >= self.retries + 1:
                     self.logger.error(f"Download failed after {attempt} attempts: {e}")
@@ -118,6 +124,7 @@ class Downloader:
 
         def worker(start: int, end: int):
             try:
+                self.logger.debug(f"Worker starting: bytes {start}-{end}")
                 headers = {"Range": f"bytes={start}-{end}"}
                 r = self.request.stream(url, headers=headers)
                 if r.status_code != 206:
@@ -132,6 +139,7 @@ class Downloader:
                             raise DownloadCancelled()
                         if chunk:
                             f.write(chunk)
+                self.logger.debug(f"Worker finished: bytes {start}-{end}")
             except Exception as e:
                 with lock:
                     errors.append(e)
