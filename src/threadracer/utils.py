@@ -9,11 +9,45 @@ def parse_headers(headers: list[str] | None) -> dict[str, str]:
     """
     if not headers:
         return {}
-    parsed = {}
+
+    parsed: dict[str, str] = {}
+
     for h in headers:
-        if ":" in h:
-            key, val = h.split(":", 1)
-            parsed[key.strip()] = val.strip()
+        if ":" not in h:
+            raise ValueError(f"Invalid header format: {h}")
+
+        key, val = h.split(":", 1)
+        key = key.strip()
+        val = val.strip()
+
+        if not key:
+            raise ValueError(f"Invalid header (empty key): {h}")
+
+        parsed[key] = val
+
+    return parsed
+
+
+def parse_cookies(cookies: list[str] | None) -> dict[str, str]:
+    """
+    Parse a list of cookie strings in 'Key=Value' format.
+    """
+    if not cookies:
+        return {}
+    parsed: dict[str, str] = {}
+    for c in cookies:
+        if "=" not in c:
+            raise ValueError(f"Invalid cookie format: {c}")
+
+        key, val = c.split("=", 1)
+        key = key.strip()
+        val = val.strip()
+
+        if not key:
+            raise ValueError(f"Invalid cookie (empty key): {c}")
+
+        parsed[key] = val
+
     return parsed
 
 

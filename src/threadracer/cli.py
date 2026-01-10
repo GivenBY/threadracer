@@ -1,7 +1,7 @@
 import argparse
 import sys
 import requests
-from threadracer.utils import parse_headers
+from threadracer.utils import parse_headers, parse_cookies
 from threadracer.core.logger import Logger
 from threadracer.core.downloader import Downloader, DownloadCancelled
 from threadracer.core.request import Request
@@ -30,19 +30,17 @@ def main():
         required=True,
         help="URL of the file to download",
     )
-    # TODO: Add support for headers
     parser.add_argument(
         "-H",
         "--header",
         action="append",
         help="HTTP header (Key: Value)",
     )
-    # TODO: Add support for cookies
     parser.add_argument(
-        "-c",
+        "-b",
         "--cookie",
         action="append",
-        help="HTTP cookie (Key: Value)",
+        help="HTTP cookie (Key=Value)",
     )
     parser.add_argument(
         "-o",
@@ -89,13 +87,22 @@ def main():
     )
 
     args = parser.parse_args()
-    headers = parse_headers(args.header)
+    try:
+        headers = parse_headers(args.header)
+        cookies = parse_cookies(args.cookie)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print(headers)
+    print(cookies)
 
     with Logger(verbose=args.verbose) as logger:
         logger.info("Threadracer started")
 
         request = Request(logger=logger)
         request.session.headers.update(headers)
+        request.session.cookies.update(cookies)
 
         downloader = Downloader(
             logger=logger,
